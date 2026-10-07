@@ -1,4 +1,4 @@
-<p align="center"><img src="logo.png" width="250" alt="Mind the Limit logo"></p>
+<p align="center"><img src="social-preview.png" width="100%" alt="Mind the Limit. Simon says: mind the limit!"></p>
 
 # Mind the Limit
 

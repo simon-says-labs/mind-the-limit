@@ -21,6 +21,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -130,15 +131,25 @@ def install(source: Path, python: str, with_agent: bool = True, run=subprocess.r
         plist.parent.mkdir(parents=True, exist_ok=True)
         with open(plist, "wb") as handle:
             plistlib.dump(agent_plist(app_home, config.log_path(), cfg["claude"] or None), handle)
-        if cfg["device"]:
-            start(run)
+        if cfg["device"] and not start(run):
+            return 1
     return 0
 
 
 def start(run=subprocess.run) -> bool:
+    """(Re)loads the job. `bootout` returns before a running job is gone, and `bootstrap` fails while it is
+    still there, so wait for it to disappear first and retry the load a few times."""
     plist = plist_path()
     launchctl("bootout", "%s/%s" % (domain(), config.LABEL), run=run)
-    return launchctl("bootstrap", domain(), str(plist), run=run) == 0
+    for _ in range(40):
+        if not is_loaded(run):
+            break
+        time.sleep(0.5)
+    for _ in range(3):
+        if launchctl("bootstrap", domain(), str(plist), run=run) == 0:
+            return True
+        time.sleep(1.0)
+    return False
 
 
 def restart(run=subprocess.run) -> bool:

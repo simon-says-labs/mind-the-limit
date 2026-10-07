@@ -127,6 +127,58 @@ class AgentTest(Isolated):
         self.assertTrue((trash / "app" / "config.json").exists())
 
 
+class FakeLaunchd:
+    """Like launchctl for one service: bootout takes `unload_polls` status checks to finish, bootstrap fails meanwhile."""
+
+    def __init__(self, loaded=True, unload_polls=3):
+        self.loaded, self.unloading, self.unload_polls = loaded, 0, unload_polls
+        self.calls = []
+
+    def __call__(self, cmd, **kw):
+        verb = cmd[1]
+        self.calls.append(verb)
+        if verb == "bootout":
+            if self.loaded:
+                self.unloading = self.unload_polls
+            return subprocess.CompletedProcess(cmd, 0 if self.loaded else 3)
+        if verb == "print":
+            if self.unloading:
+                self.unloading -= 1
+                if not self.unloading:
+                    self.loaded = False
+                return subprocess.CompletedProcess(cmd, 0)
+            return subprocess.CompletedProcess(cmd, 0 if self.loaded else 113)
+        if verb == "bootstrap":
+            if self.loaded or self.unloading:
+                return subprocess.CompletedProcess(cmd, 5)
+            self.loaded = True
+            return subprocess.CompletedProcess(cmd, 0)
+        return subprocess.CompletedProcess(cmd, 0)
+
+
+class StartTest(Isolated):
+    def setUp(self):
+        super().setUp()
+        Path(os.environ["MIND_THE_LIMIT_PLIST"]).write_text("plist")
+
+    def test_restart_of_a_running_job_waits_until_it_is_gone(self):
+        launchd = FakeLaunchd(loaded=True, unload_polls=3)
+        with mock.patch.object(agent.time, "sleep"):
+            self.assertTrue(agent.start(run=launchd))
+        self.assertTrue(launchd.loaded)
+        self.assertEqual(launchd.calls[-1], "bootstrap")
+
+    def test_first_start(self):
+        with mock.patch.object(agent.time, "sleep"):
+            self.assertTrue(agent.start(run=FakeLaunchd(loaded=False)))
+
+    def test_start_reports_failure(self):
+        def broken(cmd, **kw):
+            return subprocess.CompletedProcess(cmd, 5 if cmd[1] == "bootstrap" else 113)
+        with mock.patch.object(agent.time, "sleep"):
+            self.assertFalse(agent.start(run=broken))
+
+
 class FakeHA:
     """Answers like Home Assistant: /api/ needs the token, /api/states/<entity> knows one entity."""
 

@@ -24,6 +24,9 @@ Da 99 % in su mostra 99 e una barra piena. Se Mind the Limit non riesce a legger
 simbolo rosso invece dei vecchi numeri: <img src="error-usage.png" width="40" alt="punto interrogativo rosso"> = limiti non leggibili,
 <img src="error-claude.png" width="40" alt="C rossa"> = il comando `claude` non è stato trovato.
 
+Se fallisce una sola lettura (circa il 2 % delle letture sul Mac di sviluppo), restano gli ultimi valori e Mind the
+Limit riprova dopo un minuto. Il `?` rosso compare solo se per 15 minuti nessuna lettura è andata a buon fine.
+
 ## Come funziona
 
 Ogni 5 minuti Mind the Limit chiede direttamente a Claude Code: `claude -p /usage`. È un comando locale senza

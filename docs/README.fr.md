@@ -24,6 +24,9 @@ Trois lignes, chacune avec un nombre et une barre de huit points. La couleur rem
 affiche un grand symbole rouge au lieu d'anciens chiffres : <img src="error-usage.png" width="40" alt="point d'interrogation rouge"> = limites illisibles,
 <img src="error-claude.png" width="40" alt="C rouge"> = la commande `claude` est introuvable.
 
+Si une seule lecture échoue (environ 2 % des lectures sur le Mac de développement), les dernières valeurs restent
+affichées et Mind the Limit redemande au bout d'une minute. Le `?` rouge n'apparaît que si aucune lecture n'a réussi pendant 15 minutes.
+
 ## Comment ça marche
 
 Toutes les 5 minutes, Mind the Limit interroge Claude Code lui-même : `claude -p /usage`. C'est une commande locale

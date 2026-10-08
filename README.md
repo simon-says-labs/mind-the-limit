@@ -30,6 +30,9 @@ Ab 99 % steht dort 99 und der Balken ist voll. Kann Mind the Limit die Limits ni
 rotes Zeichen statt alter Zahlen: <img src="docs/error-usage.png" width="40" alt="rotes Fragezeichen"> = Limits
 nicht lesbar, <img src="docs/error-claude.png" width="40" alt="rotes C"> = der Befehl `claude` wurde nicht gefunden.
 
+Scheitert nur eine einzelne Abfrage (auf dem Entwicklungs-Mac etwa 2 % aller Abfragen), bleiben die letzten Werte stehen
+und Mind the Limit fragt nach einer Minute erneut. Das rote `?` erscheint erst, wenn 15 Minuten lang keine Abfrage geklappt hat.
+
 ### So funktioniert es
 
 Alle 5 Minuten fragt Mind the Limit Claude Code selbst: `claude -p /usage`. Das ist ein lokaler Befehl ohne
@@ -145,6 +148,9 @@ Three rows, each a number and an eight-dot bar. The colour replaces a label:
 From 99 % on it shows 99 and a full bar. If Mind the Limit cannot read the limits, the box shows a large red symbol
 instead of old numbers: <img src="docs/error-usage.png" width="40" alt="red question mark"> = limits not readable,
 <img src="docs/error-claude.png" width="40" alt="red C"> = the `claude` command was not found.
+
+If just one reading fails (about 2 % of all readings on the Mac this was built on), the last values stay and Mind the
+Limit asks again after a minute. The red `?` appears only when no reading has worked for 15 minutes.
 
 ### How it works
 

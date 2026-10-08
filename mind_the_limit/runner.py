@@ -1,7 +1,10 @@
 """The loop that runs in the background: read the limits, draw them, send them, keep the box awake.
 
-Every reading replaces the picture. If the limits cannot be read, the box shows a red symbol
-instead of the last numbers: old numbers that look current are worse than a visible gap.
+Every reading replaces the picture. `claude -p /usage` fails now and then for a single reading (about 2 % of
+readings, measured over two months: no answer within the time limit, or no limits in the output). Then the last
+values stay for up to STALE_AFTER seconds and the next try comes after RETRY_AFTER_FAILURE seconds. Only when no
+reading has worked for longer does the box show a red symbol: old numbers that look current are worse than a
+visible gap.
 
 Copyright (c) 2026 Simon Eckmiller. MIT License.
 """
@@ -17,6 +20,8 @@ from .device import DeviceError
 from .texts import t
 
 RETRY_SECONDS = 60
+RETRY_AFTER_FAILURE = 60
+STALE_AFTER = 900
 
 
 def _pct(value) -> str:
@@ -33,6 +38,8 @@ class Runner:
         self.shown_brightness = None
         self.connected = False
         self.last_problem = None
+        self.last_good = None          # (time, pixels) of the last reading that worked
+        self.retry_soon = False
 
     def say(self, key: str, **values) -> None:
         self.log("[%s] %s" % (self.clock.strftime("%H:%M:%S"), t(self.lang, key, **values)))
@@ -69,13 +76,23 @@ class Runner:
                      model="%s %s" % (model.label, _pct(model.percent)) if model else "-")
             self._write_state(time=stamp, meters=[m.__dict__ for m in meters], error=None)
             self.last_problem = None
+            self.last_good = (self.clock.time(), pixels)
+            self.retry_soon = False
         except usage.UsageUnavailable as exc:
             code = "claude" if exc.reason == "claude-missing" else "usage"
-            pixels = panel.render_error(code)
-            if exc.reason != self.last_problem:
-                self.say("unavailable", reason=str(exc), symbol=panel.ERROR_SYMBOLS[code])
+            age = self.clock.time() - self.last_good[0] if self.last_good else None
+            if code == "usage" and age is not None and age <= STALE_AFTER:
+                pixels = self.last_good[1]
+                self.retry_soon = True
+                self.say("unavailable_kept", reason=str(exc), minutes=int(age // 60), seconds=RETRY_AFTER_FAILURE)
+                self._write_state(error_time=stamp, error=str(exc))
+            else:
+                pixels = panel.render_error(code)
+                self.retry_soon = False
+                if exc.reason != self.last_problem:
+                    self.say("unavailable", reason=str(exc), symbol=panel.ERROR_SYMBOLS[code])
+                self._write_state(error_time=stamp, error=str(exc), meters=[])
             self.last_problem = exc.reason
-            self._write_state(error_time=stamp, error=str(exc), meters=[])
         self._ensure_connected()
         self.box.send(protocol.image(pixels), settle=0.5)
         return pixels
@@ -108,7 +125,7 @@ class Runner:
             self._write_state(error_time=self.clock.strftime("%Y-%m-%d %H:%M:%S"), error=str(exc))
             self.clock.sleep(RETRY_SECONDS)
             return
-        remaining = int(self.cfg["interval"])
+        remaining = RETRY_AFTER_FAILURE if self.retry_soon else int(self.cfg["interval"])
         while remaining > 0:
             step = min(60, remaining)
             self.clock.sleep(step)

@@ -13,6 +13,10 @@ class FakeClock:
     def __init__(self, hour=12):
         self.hour = hour
         self.slept = []
+        self.now = 1_000_000.0
+
+    def time(self):
+        return self.now
 
     def strftime(self, fmt):
         return time.strftime(fmt, time.struct_time((2026, 10, 7, self.hour, 0, 0, 2, 280, -1)))
@@ -22,6 +26,7 @@ class FakeClock:
 
     def sleep(self, seconds):
         self.slept.append(seconds)
+        self.now += seconds
 
 
 class Source:
@@ -67,9 +72,31 @@ class RunnerTest(unittest.TestCase):
         r.poll()
         self.assertEqual(images(self.link)[-1], protocol.image(panel.render(changed)))
 
-    def test_unreadable_limits_show_the_error_not_old_numbers(self):
-        r = self.make(Source(METERS, usage.UsageUnavailable("no-limits")))
+    def test_one_failed_reading_keeps_the_last_picture_and_retries_soon(self):
+        r = self.make(Source(METERS, usage.UsageUnavailable("claude-failed")))
         r.poll()
+        r.clock.now += 300
+        r.poll()
+        self.assertEqual(images(self.link)[-1], protocol.image(panel.render(METERS)))
+        self.assertTrue(r.retry_soon)
+        self.assertIn("kept", self.lines[-1])
+
+    def test_cycle_after_a_failed_reading_waits_only_a_minute(self):
+        r = self.make(Source(METERS, usage.UsageUnavailable("claude-failed"), METERS))
+        r.cycle()
+        r.clock.slept.clear()
+        r.cycle()
+        self.assertEqual(r.clock.slept, [runner.RETRY_AFTER_FAILURE])
+
+    def test_values_older_than_the_limit_give_way_to_the_error(self):
+        r = self.make(Source(METERS, usage.UsageUnavailable("claude-failed")))
+        r.poll()
+        r.clock.now += runner.STALE_AFTER + 1
+        r.poll()
+        self.assertEqual(images(self.link)[-1], protocol.image(panel.render_error("usage")))
+
+    def test_unreadable_limits_show_the_error_not_old_numbers(self):
+        r = self.make(Source(usage.UsageUnavailable("no-limits")))
         r.poll()
         self.assertEqual(images(self.link)[-1], protocol.image(panel.render_error("usage")))
         state = json.loads((Path(self.tmp.name) / "state.json").read_text())
